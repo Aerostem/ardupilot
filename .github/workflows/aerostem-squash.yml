@@ -1,0 +1,30 @@
+name: aerostem-squash
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  squash:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: AeroStemH743V1-board
+          fetch-depth: 10
+      - name: squash to 2 commits
+        run: |
+          set -ex
+          BASE=$(git rev-parse 67e583d)
+          AUTH=$(git log -1 --format='%an' $(git rev-list --reverse "$BASE"..HEAD | head -1)); MAIL=$(git log -1 --format='%ae' $(git rev-list --reverse "$BASE"..HEAD | head -1))
+          git config user.name "$AUTH"; git config user.email "$MAIL"
+          OLD=$(git rev-parse HEAD)
+          git reset --soft "$BASE"
+          git reset -q -- Tools/bootloaders
+          git diff --cached --name-only | tee /tmp/c1
+          ! grep -v '^libraries/AP_HAL_ChibiOS/hwdef/AeroStemH743V1/' /tmp/c1
+          git commit -q -m "hwdef: add AeroStemH743V1"
+          git add Tools/bootloaders/AeroStemH743V1_bl.bin Tools/bootloaders/AeroStemH743V1_bl.hex
+          git commit -q -m "bootloaders: add AeroStemH743V1 bootloader"
+          test -z "$(git status --porcelain)"
+          git diff --exit-code "$OLD" HEAD
+          git log --stat --format='%H %an <%ae> %s' -2
+          git push --force-with-lease=AeroStemH743V1-board:"$OLD" origin HEAD:AeroStemH743V1-board
